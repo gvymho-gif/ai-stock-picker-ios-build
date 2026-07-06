@@ -39,12 +39,19 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['SWIFT_VERSION'] = '5.0'
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      # 修复 Flutter/Flutter.h 头文件找不到的问题
-      # 将 Flutter framework 的头文件路径添加到 Pods 的 HEADER_SEARCH_PATHS
-      flutter_framework_path = File.join(File.dirname(File.realpath(__FILE__)), 'Flutter')
+      
+      # 关键修复：Flutter/Flutter.h 找不到
+      # 1. #import <Flutter/Flutter.h> 需要 FRAMEWORK_SEARCH_PATHS 包含 Flutter.framework 所在目录
+      # 2. 我们把 Flutter xcframework 的真机版复制到了 ios/Flutter/Flutter.framework
+      flutter_dir = File.join(File.dirname(File.realpath(__FILE__)), 'Flutter')
+      
+      # FRAMEWORK_SEARCH_PATHS：让编译器找到 Flutter.framework（包含 Flutter.h）
+      config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= ['$(inherited)']
+      config.build_settings['FRAMEWORK_SEARCH_PATHS'] << flutter_dir
+      
+      # HEADER_SEARCH_PATHS：让编译器直接找到头文件
       config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
-      config.build_settings['HEADER_SEARCH_PATHS'] << flutter_framework_path
-      config.build_settings['HEADER_SEARCH_PATHS'] << "#{flutter_framework_path}/App.framework/Headers"
+      config.build_settings['HEADER_SEARCH_PATHS'] << "#{flutter_dir}/Flutter.framework/Headers"
     end
   end
 end
