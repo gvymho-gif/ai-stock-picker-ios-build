@@ -1,0 +1,33 @@
+name: ai_stock_picker
+description: AI自动选股系统 - 支持A股、港股、美股，智能规则引擎深度分析
+publish_to: 'none'
+version: 2.0.2+24
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  http: ^0.13.5
+  shared_preferences: ^2.0.18
+  uuid: ^4.0.0
+  intl: ^0.18.0
+  fl_chart: ^0.62.0
+  workmanager: ^0.5.0
+  path_provider: ^2.0.11
+  path: ^1.8.0
+  flutter_background_service: ^2.4.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.jpg
+    - assets/logo_white_bg.png
+    - assets/logo_transparent.png

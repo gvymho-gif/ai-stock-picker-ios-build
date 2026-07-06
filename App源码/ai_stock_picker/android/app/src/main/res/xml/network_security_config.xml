@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 允许明文HTTP请求 (新浪财经和天天基金使用HTTP) -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- 明确允许的HTTP域名 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">hq.sinajs.cn</domain>
+        <domain includeSubdomains="true">fundgz.1234567.com.cn</domain>
+        <domain includeSubdomains="true">push2.eastmoney.com</domain>
+        <domain includeSubdomains="true">emweb.securities.eastmoney.com</domain>
+        <domain includeSubdomains="true">vip.stock.finance.sina.com.cn</domain>
+        <domain includeSubdomains="true">boc.cn</domain>
+        <domain includeSubdomains="true">www.boc.cn</domain>
+        <domain includeSubdomains="true">exchangerate-api.com</domain>
+        <domain includeSubdomains="true">api.exchangerate-api.com</domain>
+        <domain includeSubdomains="true">vatcomply.com</domain>
+        <domain includeSubdomains="true">api.vatcomply.com</domain>
+        <domain includeSubdomains="true">open.er-api.com</domain>
+    </domain-config>
+</network-security-config>

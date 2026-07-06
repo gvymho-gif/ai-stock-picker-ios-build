@@ -1,0 +1,28 @@
+# Codemagic 云构建配置 - 免费，无需 Mac！
+# 使用步骤见 README.md 中的 "方案一"
+workflows:
+  ios-build:
+    name: 蓝图极智 iOS Build
+    max_build_duration: 45
+    environment:
+      flutter: 3.0.0
+      xcode: 15.2
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd App源码/ai_stock_picker
+          flutter pub get
+      - name: Build iOS
+        script: |
+          cd App源码/ai_stock_picker
+          flutter build ios --release --no-codesign
+      - name: Create IPA
+        script: |
+          cd App源码/ai_stock_picker
+          RUNNER_APP=$(find build/ios -name "Runner.app" -type d | head -1)
+          mkdir -p Payload
+          cp -R "$RUNNER_APP" Payload/
+          zip -qr 蓝图极智-v2.0.2.ipa Payload/
+    artifacts:
+      - App源码/ai_stock_picker/蓝图极智-v2.0.2.ipa
