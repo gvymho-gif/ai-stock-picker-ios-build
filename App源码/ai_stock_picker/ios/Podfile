@@ -27,7 +27,8 @@ flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
 target 'Runner' do
   use_frameworks!
-  use_modular_headers!
+  # 不启用 modular_headers，否则 Flutter/Flutter.h 找不到（module map 问题）
+  # use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
