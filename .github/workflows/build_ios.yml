@@ -26,6 +26,16 @@ jobs:
           flutter-version: '3.0.0'
           channel: 'stable'
 
+      # macOS 14 自带的 CocoaPods 1.16.2 对 Swift 版本校验过于严格，
+      # workmanager-library pod 不声明 Swift 版本会导致验证失败。
+      # 降级到 1.15.2 绕过此校验。
+      - name: Downgrade CocoaPods to 1.15.2
+        run: |
+          brew uninstall --ignore-dependencies cocoapods 2>/dev/null || true
+          sudo gem uninstall cocoapods -a 2>/dev/null || true
+          sudo gem install cocoapods -v 1.15.2
+          pod --version
+
       # 关键修复：Flutter 3.0.0 的 podhelper.rb 用了 File.exists?，
       # 在 macOS 14 的 Ruby 3.3 里已被移除，必须替换为 File.exist?
       - name: Patch Flutter SDK - Ruby 3.x 兼容
