@@ -39,9 +39,13 @@ jobs:
           if [ -n "$VALIDATOR" ] && [ -f "$VALIDATOR" ]; then
             ruby -e "
               file = ARGV[0]
-              content = File.read(file)
-              content.sub!(/(def verify_swift_pods_swift_version\n)/, '\1  return\n')
-              File.write(file, content)
+              lines = File.readlines(file)
+              new_lines = []
+              lines.each do |line|
+                new_lines << line
+                new_lines << \"  return\n\" if line.strip == 'def verify_swift_pods_swift_version'
+              end
+              File.write(file, new_lines.join)
             " "$VALIDATOR"
             echo "✅ Swift 校验已绕过"
           else
