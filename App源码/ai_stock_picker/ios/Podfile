@@ -1,6 +1,4 @@
-# 蓝图极智 iOS Podfile - 兼容 Ruby 3.x
 platform :ios, '13.0'
-
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 target 'Runner' do
@@ -12,22 +10,20 @@ target 'Runner' do
   pod 'Flutter', :path => File.join(flutter_root, 'Flutter')
 
   plugin_dir = File.join(flutter_root, '.symlinks', 'plugins')
-  Dir[File.join(plugin_dir, '*')].select { |f| File.directory?(f) }.each do |plugin_path|
-    plugin_name = File.basename(plugin_path)
-    podspec = File.join(plugin_path, 'ios', "#{plugin_name}.podspec")
-    if File.exist?(podspec)
-      pod plugin_name, :path => File.join(plugin_path, 'ios')
+  if File.exist?(plugin_dir)
+    Dir[File.join(plugin_dir, '*')].each do |plugin_path|
+      next unless File.directory?(plugin_path)
+      plugin_name = File.basename(plugin_path)
+      podspec = File.join(plugin_path, 'ios', "#{plugin_name}.podspec")
+      if File.exist?(podspec)
+        pod plugin_name, :path => File.join(plugin_path, 'ios')
+      end
     end
-  end
-
-  target 'RunnerTests' do
-    inherit! :search_paths
   end
 end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['ENABLE_BITCODE'] = 'NO'
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
