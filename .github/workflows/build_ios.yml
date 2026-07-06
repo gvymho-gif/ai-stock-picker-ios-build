@@ -33,7 +33,7 @@ jobs:
         run: |
           brew uninstall --ignore-dependencies cocoapods 2>/dev/null || true
           sudo gem uninstall cocoapods -a 2>/dev/null || true
-          sudo gem install cocoapods -v 1.15.2
+          sudo gem install cocoapods -v 1.14.3
           pod --version
 
       # 关键修复：Flutter 3.0.0 的 podhelper.rb 用了 File.exists?，
