@@ -33,11 +33,9 @@ jobs:
           rm -f .flutter-plugins .flutter-plugins-dependencies ios/Podfile.lock
           rm -rf ios/Pods 2>/dev/null || true
 
-      # 修复 1：podhelper.rb File.exists? → File.exist?
       - name: 修复 1 - Ruby 3.x 兼容
         run: find $FLUTTER_ROOT/packages/flutter_tools/bin/ -name "podhelper*" -exec sed -i '' 's/File\.exists?/File.exist?/g' {} \;
 
-      # 修复 2：绕过 CocoaPods Swift 校验
       - name: 修复 2 - 绕过 CocoaPods Swift 校验
         run: |
           VALIDATOR=$(find /opt/homebrew/lib/ruby/gems -name "target_validator.rb" -path "*/cocoapods/*" 2>/dev/null | head -1)
@@ -49,42 +47,39 @@ jobs:
             " "$VALIDATOR"
           fi
 
-      # 核心修复 3：将 iOS device 版的 Flutter xcframework 复制到 ios/Flutter/ 下，
-      # 让 CocoaPods 的 Pods targets 能通过 FRAMEWORK_SEARCH_PATHS 找到 Flutter/Flutter.h
-      - name: 核心修复 3 - 安装 Flutter xcframework 到 ios/Flutter
-        working-directory: App源码/ai_stock_picker
-        run: |
-          # 找到真机版 Flutter xcframework
-          XCFW="$FLUTTER_ROOT/bin/cache/artifacts/engine/ios-release/Flutter.xcframework"
-          DEVICE_FW="$XCFW/ios-arm64_armv7/Flutter.framework"
-          
-          if [ -d "$DEVICE_FW" ]; then
-            echo "✅ 找到真机 Flutter.framework: $DEVICE_FW"
-            
-            # 创建 ios/Flutter/Flutter.framework symlink
-            mkdir -p ios/Flutter
-            # 直接把 xcframework 复制过来（用 symlink 不够可靠）
-            cp -R "$DEVICE_FW" ios/Flutter/Flutter.framework
-            
-            # 验证 Flutter.h 存在
-            ls ios/Flutter/Flutter.framework/Headers/Flutter.h && echo "✅ Flutter.h 已就位"
-          else
-            echo "❌ Flutter.framework 未找到"
-            find "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios-release" -name "*.framework" -type d | head -5
-            exit 1
-          fi
-
       - name: flutter pub get
         working-directory: App源码/ai_stock_picker
         run: flutter pub get
 
-      # pod install 后修改 Pods project，为所有 targets 添加 FRAMEWORK_SEARCH_PATHS
-      - name: pod install + 注入 FRAMEWORK_SEARCH_PATHS
+      # 复制真机 Flutter.framework 到 ios/Flutter/（供 Pods 查找 Flutter.h）
+      - name: 安装 Flutter.framework 到 ios/Flutter
+        working-directory: App源码/ai_stock_picker
+        run: |
+          DEVICE_FW="$FLUTTER_ROOT/bin/cache/artifacts/engine/ios-release/Flutter.xcframework/ios-arm64_armv7/Flutter.framework"
+          if [ -d "$DEVICE_FW" ]; then
+            mkdir -p ios/Flutter
+            cp -R "$DEVICE_FW" ios/Flutter/Flutter.framework
+            echo "✅ Flutter.framework 已复制"
+            ls ios/Flutter/Flutter.framework/Headers/Flutter.h
+          else
+            echo "❌ 未找到"
+            exit 1
+          fi
+
+      # 用 flutter build 的 --config-only 生成配置文件但不编译
+      # 然后手动 pod install + 修改 Pods project + xcodebuild
+      - name: flutter build --config-only
+        working-directory: App源码/ai_stock_picker
+        run: flutter build ios --release --no-codesign --config-only || true
+
+      - name: pod install
+        working-directory: App源码/ai_stock_picker/ios
+        run: pod install
+
+      # pod install 之后修改 Pods project，注入 FRAMEWORK_SEARCH_PATHS
+      - name: 注入 FRAMEWORK_SEARCH_PATHS 到 Pods
         working-directory: App源码/ai_stock_picker/ios
         run: |
-          pod install
-          
-          # 用 Ruby xcodeproj gem 修改 Pods project
           ruby -e "
             require 'xcodeproj'
             project = Xcodeproj::Project.open('Pods/Pods.xcodeproj')
@@ -96,21 +91,75 @@ jobs:
                 end
                 paths << '\"ios/Flutter\"'
                 config.build_settings['FRAMEWORK_SEARCH_PATHS'] = paths
+                
+                # 也注入 HEADER_SEARCH_PATHS
+                hpaths = config.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
+                if hpaths.is_a?(String)
+                  hpaths = hpaths.split
+                end
+                hpaths << '\"ios/Flutter/Flutter.framework/Headers\"'
+                config.build_settings['HEADER_SEARCH_PATHS'] = hpaths
               end
             end
             project.save
-            puts '✅ FRAMEWORK_SEARCH_PATHS 已注入到所有 Pods targets'
+            puts '✅ FRAMEWORK_SEARCH_PATHS + HEADER_SEARCH_PATHS 已注入'
           "
 
-      - name: flutter build ios
+      # 直接用 xcodebuild 构建（不通过 flutter build，避免 pod install 被重跑）
+      - name: xcodebuild (unsigned)
+        working-directory: App源码/ai_stock_picker/ios
+        run: |
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination generic/platform=ios \
+            -arch arm64 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            ONLY_ACTIVE_ARCH=NO \
+            build 2>&1 | tee /tmp/xcodebuild.log
+
+      # 如果 xcodebuild 也失败了，回退到 flutter build（兜底）
+      - name: 兜底 - flutter build
         working-directory: App源码/ai_stock_picker
-        run: flutter build ios --release --no-codesign
+        if: failure()
+        run: |
+          # 先修改 Runner project 也加上 FRAMEWORK_SEARCH_PATHS
+          ruby -e "
+            require 'xcodeproj'
+            project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+            project.targets.each do |target|
+              target.build_configurations.each do |config|
+                paths = config.build_settings['FRAMEWORK_SEARCH_PATHS'] || ['$(inherited)']
+                if paths.is_a?(String)
+                  paths = paths.split
+                end
+                paths << '\"ios/Flutter\"'
+                config.build_settings['FRAMEWORK_SEARCH_PATHS'] = paths
+              end
+            end
+            project.save
+          " || true
+          flutter build ios --release --no-codesign || true
 
       - name: Package IPA
         working-directory: App源码/ai_stock_picker
+        if: always()
         run: |
-          APP=$(find build/ios -name "Runner.app" -type d | head -1)
+          APP=$(find build/ios -name "Runner.app" -type d 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then
+            APP=$(find ios/build -name "Runner.app" -type d 2>/dev/null | head -1)
+          fi
           echo "App: $APP"
+          if [ -z "$APP" ]; then
+            echo "❌ Runner.app 未找到"
+            find . -name "*.app" -type d 2>/dev/null | head -10
+            exit 1
+          fi
           mkdir -p Payload
           cp -R "$APP" Payload/
           zip -9qr 蓝图极智-v2.0.2-unsigned.ipa Payload/
@@ -118,6 +167,7 @@ jobs:
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: 蓝图极智-unsigned-iPA
           path: App源码/ai_stock_picker/蓝图极智-v2.0.2-unsigned.ipa
