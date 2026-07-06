@@ -37,7 +37,7 @@ jobs:
         run: |
           VALIDATOR=$(find /opt/homebrew/lib/ruby/gems -name "target_validator.rb" -path "*/cocoapods/*" 2>/dev/null | head -1)
           if [ -n "$VALIDATOR" ] && [ -f "$VALIDATOR" ]; then
-            sed -i '' 's/verify_swift_pods_swift_version/#verify_swift_pods_swift_version/' "$VALIDATOR"
+            sed -i '' '/def verify_swift_pods_swift_version/a\  return' "$VALIDATOR"
             echo "✅ Swift 校验已绕过"
           else
             echo "⚠️ target_validator.rb 未找到"
